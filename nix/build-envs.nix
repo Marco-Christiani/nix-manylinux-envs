@@ -14,6 +14,14 @@
   pkgs21_05 = import inputs.nixpkgs-21_05.outPath {inherit system;};
   pkgs22_05 = import inputs.nixpkgs-22_05.outPath {inherit system;};
   pkgs22_11 = import inputs.nixpkgs-22_11.outPath {inherit system;};
+  extractDockerRootfs = import ./lib/extract-docker-rootfs.nix {inherit pkgs;};
+  runtimeBundleLib = import ./lib/mk-runtime-bundle.nix {inherit lib pkgs;};
+  createLibraryBundle = runtimeBundleLib.createLibraryBundle;
+  createLibraryBundleFromPaths = runtimeBundleLib.createLibraryBundleFromPaths;
+  mkConformanceReport = import ./lib/mk-conformance-report.nix {
+    inherit lib pkgs conformanceScript python;
+  };
+  mkBuildShell = import ./lib/mk-build-shell.nix {inherit pkgs;};
   manylinux2014Image = pkgs.dockerTools.pullImage {
     imageName = "quay.io/pypa/manylinux2014_x86_64";
     imageDigest = "sha256:79abced054d8add673e4885d9598e1adc56260989b83aec0922e4cd6eb3ef066";
@@ -21,46 +29,6 @@
     finalImageName = "quay.io/pypa/manylinux2014_x86_64";
     finalImageTag = "latest";
   };
-
-  extractDockerRootfs = {
-    name,
-    imageTar,
-  }:
-    pkgs.runCommand name {nativeBuildInputs = [pkgs.python3 pkgs.gnutar];} ''
-      mkdir image rootfs
-      tar -xf ${imageTar} -C image
-      python - <<'PY'
-      import json, os, shutil, stat, tarfile
-      image_dir = "image"
-      root_dir = "rootfs"
-      with open(os.path.join(image_dir, "manifest.json")) as fh:
-          manifest = json.load(fh)
-      for layer in manifest[0]["Layers"]:
-          with tarfile.open(os.path.join(image_dir, layer)) as tf:
-              for member in tf.getmembers():
-                  base = os.path.basename(member.name)
-                  parent = os.path.dirname(member.name)
-                  if base.startswith(".wh."):
-                      target = os.path.join(root_dir, parent, base[4:])
-                      if os.path.isdir(target) and not os.path.islink(target):
-                          shutil.rmtree(target, ignore_errors=True)
-                      else:
-                          try:
-                              os.unlink(target)
-                          except FileNotFoundError:
-                              pass
-                      continue
-                  tf.extract(member, root_dir, set_attrs=False)
-                  target = os.path.join(root_dir, member.name)
-                  if member.isfile() and not os.path.islink(target):
-                      try:
-                          os.chmod(target, member.mode | stat.S_IRUSR | stat.S_IWUSR)
-                      except (FileNotFoundError, PermissionError):
-                          pass
-      PY
-      mkdir -p "$out"
-      cp -a rootfs/. "$out/"
-    '';
 
   manylinux2014Rootfs = extractDockerRootfs {
     name = "manylinux2014-rootfs";
@@ -186,31 +154,17 @@
           target.notes
           + " Candidate hybrid: glibc 2.28 rebuilt from nixos-20.03, gcc14 frontend from nixos-unstable, gcc-7.4.0 shared runtime from nixos-19.03, and a narrow filesystem compatibility archive to keep C++17 path symbols within the manylinux_2_28 ceiling.";
       };
-    conformanceTargetJson = pkgs.writeText "manylinux_2_28-candidate-target.json" (
-      builtins.toJSON (builtins.removeAttrs candidateTarget ["stdcxxPkgs"])
-    );
-    conformanceReport =
-      pkgs.runCommand "manylinux_2_28-candidate-conformance-report"
-      {
-        nativeBuildInputs = [
-          python
-          pkgs.binutils
-        ];
-      }
-      ''
-        mkdir -p "$out"
-        python ${conformanceScript} \
-          --target-json ${conformanceTargetJson} \
-          --runtime-lib-dir ${runtimeLibs}/lib \
-          --cc ${compilerCc}/bin/cc \
-          --readelf ${pkgs.binutils}/bin/readelf \
-          --libc ${lib.getLib glibc228}/lib/libc.so.6 \
-          --libstdcxx ${runtimeCompilerLib}/lib/libstdc++.so.6 \
-          --libatomic ${runtimeCompilerLib}/lib/libatomic.so.1 \
-          --zlib ${lib.getLib pkgs20_03.zlib}/lib/libz.so.1 \
-          --output "$out/report.json"
-      '';
-    shell = pkgs.mkShellNoCC {
+    conformanceReport = mkConformanceReport {
+      name = "manylinux_2_28-candidate-conformance-report";
+      target = builtins.removeAttrs candidateTarget ["stdcxxPkgs"];
+      runtimeLibs = runtimeLibs;
+      cc = "${compilerCc}/bin/cc";
+      libc = "${lib.getLib glibc228}/lib/libc.so.6";
+      libstdcxx = "${runtimeCompilerLib}/lib/libstdc++.so.6";
+      libatomic = "${runtimeCompilerLib}/lib/libatomic.so.1";
+      zlib = "${lib.getLib pkgs20_03.zlib}/lib/libz.so.1";
+    };
+    shell = mkBuildShell {
       name = "manylinux_2_28-candidate-shell";
       packages = [
         compilerCc
@@ -320,31 +274,17 @@
           target.notes
           + " Candidate mostly-coherent baseline: glibc 2.34 and gcc-11.3.0 shared runtime from nixos-22.05, gcc14 frontend from nixos-unstable, zlib 1.2.9 surface from nixos-21.05, and the upstream-style linker layering used in the 2.28 candidate.";
       };
-    conformanceTargetJson = pkgs.writeText "manylinux_2_34-candidate-target.json" (
-      builtins.toJSON (builtins.removeAttrs candidateTarget ["stdcxxPkgs"])
-    );
-    conformanceReport =
-      pkgs.runCommand "manylinux_2_34-candidate-conformance-report"
-      {
-        nativeBuildInputs = [
-          python
-          pkgs.binutils
-        ];
-      }
-      ''
-        mkdir -p "$out"
-        python ${conformanceScript} \
-          --target-json ${conformanceTargetJson} \
-          --runtime-lib-dir ${runtimeLibs}/lib \
-          --cc ${compilerCc}/bin/cc \
-          --readelf ${pkgs.binutils}/bin/readelf \
-          --libc ${lib.getLib pkgs22_05.glibc}/lib/libc.so.6 \
-          --libstdcxx ${runtimeCompilerLib}/lib/libstdc++.so.6 \
-          --libatomic ${runtimeCompilerLib}/lib/libatomic.so.1 \
-          --zlib ${lib.getLib pkgs21_05.zlib}/lib/libz.so.1 \
-          --output "$out/report.json"
-      '';
-    shell = pkgs.mkShellNoCC {
+    conformanceReport = mkConformanceReport {
+      name = "manylinux_2_34-candidate-conformance-report";
+      target = builtins.removeAttrs candidateTarget ["stdcxxPkgs"];
+      runtimeLibs = runtimeLibs;
+      cc = "${compilerCc}/bin/cc";
+      libc = "${lib.getLib pkgs22_05.glibc}/lib/libc.so.6";
+      libstdcxx = "${runtimeCompilerLib}/lib/libstdc++.so.6";
+      libatomic = "${runtimeCompilerLib}/lib/libatomic.so.1";
+      zlib = "${lib.getLib pkgs21_05.zlib}/lib/libz.so.1";
+    };
+    shell = mkBuildShell {
       name = "manylinux_2_34-candidate-shell";
       packages = [
         compilerCc
@@ -381,61 +321,6 @@
     inherit runtimeLibs conformanceReport shell compilerCc;
     target = candidateTarget;
   };
-
-  createLibraryBundle = name: libraryProviders: sonames: let
-    selected = lib.filterAttrs (soname: _: builtins.elem soname sonames) libraryProviders;
-    drvs = lib.unique (lib.attrValues selected);
-    wanted = lib.attrNames selected;
-  in
-    pkgs.runCommand name
-    {
-      buildInputs = drvs;
-    }
-    ''
-      mkdir -p "$out/lib"
-      found=0
-      IFS=:
-      export DESIRED_LIBRARIES=${lib.concatStringsSep ":" wanted}
-      export LIBRARY_PATH=${lib.makeLibraryPath drvs}
-      for desired in $DESIRED_LIBRARIES; do
-        for path in $LIBRARY_PATH; do
-          if [ -e "$path/$desired" ]; then
-            ln -s "$path/$desired" "$out/lib/$desired"
-            found=$((found+1))
-            break
-          fi
-        done
-      done
-      wanted_count=${toString (lib.length wanted)}
-      if [ "$found" -ne "$wanted_count" ]; then
-        echo "Expected $wanted_count manylinux libraries, found $found" >&2
-        exit 1
-      fi
-    '';
-
-  createLibraryBundleFromPaths = name: libraryPaths: sonames: let
-    selected = lib.filterAttrs (soname: _: builtins.elem soname sonames) libraryPaths;
-    linkCommands =
-      lib.mapAttrsToList
-      (soname: path: ''
-        if [ ! -e ${lib.escapeShellArg path} ]; then
-          echo "Missing runtime library for ${soname}: ${path}" >&2
-          exit 1
-        fi
-        ln -s ${lib.escapeShellArg path} "$out/lib/${soname}"
-      '')
-      selected;
-  in
-    pkgs.runCommand name {} ''
-      mkdir -p "$out/lib"
-      ${lib.concatStringsSep "\n" linkCommands}
-      expected=${toString (lib.length sonames)}
-      actual=$(find "$out/lib" -maxdepth 1 -type l | wc -l)
-      if [ "$actual" -ne "$expected" ]; then
-        echo "Expected $expected manylinux libraries, found $actual" >&2
-        exit 1
-      fi
-    '';
 
   reference2014 = let
     target = policyTargets.manylinux2014;
@@ -477,31 +362,17 @@
           target.notes
           + " Surface reference extracted from quay.io/pypa/manylinux2014_x86_64. This is the CentOS 7-era runtime/sysroot anchor for the eventual Nix-native builder candidate.";
       };
-    conformanceTargetJson = pkgs.writeText "manylinux2014-reference-target.json" (
-      builtins.toJSON referenceTarget
-    );
-    conformanceReport =
-      pkgs.runCommand "manylinux2014-reference-conformance-report"
-      {
-        nativeBuildInputs = [
-          python
-          pkgs.binutils
-        ];
-      }
-      ''
-        mkdir -p "$out"
-        python ${conformanceScript} \
-          --target-json ${conformanceTargetJson} \
-          --runtime-lib-dir ${runtimeLibs}/lib \
-          --cc ${pkgs22_05.gcc10.cc}/bin/gcc \
-          --readelf ${pkgs.binutils}/bin/readelf \
-          --libc ${manylinux2014Rootfs}/usr/lib64/libc.so.6 \
-          --libstdcxx ${manylinux2014Rootfs}/usr/lib64/libstdc++.so.6 \
-          --libatomic ${lib.getLib pkgs22_05.gcc10.cc}/lib/libatomic.so.1 \
-          --zlib ${manylinux2014Rootfs}/usr/lib64/libz.so.1 \
-          --output "$out/report.json"
-      '';
-    shell = pkgs.mkShellNoCC {
+    conformanceReport = mkConformanceReport {
+      name = "manylinux2014-reference-conformance-report";
+      target = referenceTarget;
+      runtimeLibs = runtimeLibs;
+      cc = "${pkgs22_05.gcc10.cc}/bin/gcc";
+      libc = "${manylinux2014Rootfs}/usr/lib64/libc.so.6";
+      libstdcxx = "${manylinux2014Rootfs}/usr/lib64/libstdc++.so.6";
+      libatomic = "${lib.getLib pkgs22_05.gcc10.cc}/lib/libatomic.so.1";
+      zlib = "${manylinux2014Rootfs}/usr/lib64/libz.so.1";
+    };
+    shell = mkBuildShell {
       name = "manylinux2014-reference-shell";
       packages = [
         pkgs22_05.gcc10.cc
@@ -617,7 +488,7 @@
           target.notes
           + " Candidate builder: patched devtoolset-10 frontend from the extracted official manylinux2014 rootfs, using a rootfs-aware libstdc++ shim for the shared + nonshared link pattern.";
       };
-    shell = pkgs.mkShellNoCC {
+    shell = mkBuildShell {
       name = "manylinux2014-candidate-shell";
       packages = [
         compilerCc
@@ -724,39 +595,22 @@
       libGL.dev
     ];
 
-    conformanceTargetJson = pkgs.writeText "${targetName}-conformance-target.json" (
-      builtins.toJSON (
-        target
-        // {
-          name = targetName;
-          actualLibcVersion = pkgs.glibc.version;
-        }
-      )
-    );
+    conformanceReport = mkConformanceReport {
+      name = "${targetName}-conformance-report";
+      target = target;
+      runtimeLibs = runtimeLibs;
+      cc = "${compilerCc}/bin/cc";
+      libc = "${lib.getLib pkgs.glibc}/lib/libc.so.6";
+      libstdcxx = "${compilerLib}/lib/libstdc++.so.6";
+      libatomic = "${compilerLib}/lib/libatomic.so.1";
+      zlib = "${lib.getLib pkgs.zlib}/lib/libz.so.1";
+      extraTargetAttrs = {
+        name = targetName;
+        actualLibcVersion = pkgs.glibc.version;
+      };
+    };
 
-    conformanceReport =
-      pkgs.runCommand "${targetName}-conformance-report"
-      {
-        nativeBuildInputs = [
-          python
-          pkgs.binutils
-        ];
-      }
-      ''
-        mkdir -p "$out"
-        python ${conformanceScript} \
-          --target-json ${conformanceTargetJson} \
-          --runtime-lib-dir ${runtimeLibs}/lib \
-          --cc ${compilerCc}/bin/cc \
-          --readelf ${pkgs.binutils}/bin/readelf \
-          --libc ${lib.getLib pkgs.glibc}/lib/libc.so.6 \
-          --libstdcxx ${compilerLib}/lib/libstdc++.so.6 \
-          --libatomic ${compilerLib}/lib/libatomic.so.1 \
-          --zlib ${lib.getLib pkgs.zlib}/lib/libz.so.1 \
-          --output "$out/report.json"
-      '';
-
-    shell = pkgs.mkShellNoCC {
+    shell = mkBuildShell {
       name = "${targetName}-build-shell";
       packages = buildInputs ++ [runtimeLibs];
       env = {
