@@ -6,8 +6,8 @@
   system,
 }: let
   conformanceScript = ../scripts/conformance_report.py;
-  python = pkgs.python3;
-  pythonPkgs = python.pkgs or pkgs.python3Packages;
+  python = pkgs.python312;
+  pythonPkgs = pkgs.python312Packages or python.pkgs;
   pkgs19_03 = import inputs.nixpkgs-19_03.outPath {inherit system;};
   pkgs19_09 = import inputs.nixpkgs-19_09.outPath {inherit system;};
   pkgs20_03 = import inputs.nixpkgs-20_03.outPath {inherit system;};
@@ -18,6 +18,10 @@
   runtimeBundleLib = import ./lib/mk-runtime-bundle.nix {inherit lib pkgs;};
   inherit (runtimeBundleLib) createLibraryBundle;
   inherit (runtimeBundleLib) createLibraryBundleFromPaths;
+  optionalPythonBuild = pythonPkgs:
+    lib.optional (builtins.hasAttr "build" pythonPkgs) pythonPkgs.build;
+  optionalPythonPackage = pythonPkgs: name:
+    lib.optional (builtins.hasAttr name pythonPkgs) (builtins.getAttr name pythonPkgs);
   mkConformanceReport = import ./lib/mk-conformance-report.nix {
     inherit lib pkgs conformanceScript python;
   };
@@ -162,24 +166,29 @@
     };
     shell = mkBuildShell {
       name = "manylinux_2_28-candidate-shell";
-      packages = [
-        compilerCc
-        pkgs20_03.binutils
-        pkgs20_03.patchelf
-        pkgs20_03.pkg-config
-        pkgs20_03.gnumake
-        pkgs20_03.cmake
-        pkgs20_03.python3
-        pkgs20_03.python3Packages.pip
-        pkgs20_03.python3Packages.build
-        pkgs20_03.python3Packages.setuptools
-        pkgs20_03.python3Packages.wheel
-        pkgs20_03.python3Packages.auditwheel
-        runtimeLibs
-      ];
+      packages =
+        [
+          compilerCc
+          pkgs20_03.binutils
+          pkgs20_03.patchelf
+          pkgs20_03.pkg-config
+          pkgs20_03.gnumake
+          pkgs20_03.cmake
+          python
+          pythonPkgs.pip
+        ]
+        ++ optionalPythonBuild pythonPkgs
+        ++ [
+          pythonPkgs.setuptools
+          pythonPkgs.wheel
+          runtimeLibs
+        ]
+        ++ optionalPythonPackage pythonPkgs "auditwheel"
+        ++ optionalPythonPackage pythonPkgs "build";
       env = {
         AUDITWHEEL_POLICY = target.policy;
         NIX_MANYLINUX_TARGET = "manylinux_2_28_candidate";
+        NIX_MANYLINUX_PYTHON = "${python}/bin/python";
         NIX_MANYLINUX_RUNTIME_LIBS = "${runtimeLibs}/lib";
         NIX_MANYLINUX_GLIBC_DEV = "${glibc228.dev}/include";
         NIX_MANYLINUX_GLIBC_BIN = "${glibc228.bin}";
@@ -188,7 +197,6 @@
         NIX_CC = compilerCc;
       };
       shellHook = ''
-        export LD_LIBRARY_PATH="${runtimeLibs}/lib''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
         export CC="${compilerCc}/bin/cc"
         export CXX="${compilerCc}/bin/c++"
       '';
@@ -282,24 +290,29 @@
     };
     shell = mkBuildShell {
       name = "manylinux_2_34-candidate-shell";
-      packages = [
-        compilerCc
-        pkgs22_05.binutils
-        pkgs22_05.patchelf
-        pkgs22_05.pkg-config
-        pkgs22_05.gnumake
-        pkgs22_05.cmake
-        pkgs22_05.python3
-        pkgs22_05.python3Packages.pip
-        pkgs22_05.python3Packages.build
-        pkgs22_05.python3Packages.setuptools
-        pkgs22_05.python3Packages.wheel
-        pkgs22_05.python3Packages.auditwheel
-        runtimeLibs
-      ];
+      packages =
+        [
+          compilerCc
+          pkgs22_05.binutils
+          pkgs22_05.patchelf
+          pkgs22_05.pkg-config
+          pkgs22_05.gnumake
+          pkgs22_05.cmake
+          python
+          pythonPkgs.pip
+        ]
+        ++ optionalPythonBuild pythonPkgs
+        ++ [
+          pythonPkgs.setuptools
+          pythonPkgs.wheel
+          runtimeLibs
+        ]
+        ++ optionalPythonPackage pythonPkgs "auditwheel"
+        ++ optionalPythonPackage pythonPkgs "build";
       env = {
         AUDITWHEEL_POLICY = target.policy;
         NIX_MANYLINUX_TARGET = "manylinux_2_34_candidate";
+        NIX_MANYLINUX_PYTHON = "${python}/bin/python";
         NIX_MANYLINUX_RUNTIME_LIBS = "${runtimeLibs}/lib";
         NIX_MANYLINUX_GLIBC_DEV = "${pkgs22_05.glibc.dev}/include";
         NIX_MANYLINUX_GLIBC_BIN = "${pkgs22_05.glibc.bin}";
@@ -308,7 +321,6 @@
         NIX_CC = compilerCc;
       };
       shellHook = ''
-        export LD_LIBRARY_PATH="${runtimeLibs}/lib''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
         export CC="${compilerCc}/bin/cc"
         export CXX="${compilerCc}/bin/c++"
       '';
@@ -384,24 +396,29 @@
     };
     shell = mkBuildShell {
       name = "manylinux_2_39-candidate-shell";
-      packages = [
-        compilerCc
-        pkgs24_05.binutils
-        pkgs24_05.patchelf
-        pkgs24_05.pkg-config
-        pkgs24_05.gnumake
-        pkgs24_05.cmake
-        pkgs24_05.python3
-        pkgs24_05.python3Packages.pip
-        pkgs24_05.python3Packages.build
-        pkgs24_05.python3Packages.setuptools
-        pkgs24_05.python3Packages.wheel
-        pkgs24_05.python3Packages.auditwheel
-        runtimeLibs
-      ];
+      packages =
+        [
+          compilerCc
+          pkgs24_05.binutils
+          pkgs24_05.patchelf
+          pkgs24_05.pkg-config
+          pkgs24_05.gnumake
+          pkgs24_05.cmake
+          python
+          pythonPkgs.pip
+        ]
+        ++ optionalPythonBuild pythonPkgs
+        ++ [
+          pythonPkgs.setuptools
+          pythonPkgs.wheel
+          runtimeLibs
+        ]
+        ++ optionalPythonPackage pythonPkgs "auditwheel"
+        ++ optionalPythonPackage pythonPkgs "build";
       env = {
         AUDITWHEEL_POLICY = target.policy;
         NIX_MANYLINUX_TARGET = "manylinux_2_39_candidate";
+        NIX_MANYLINUX_PYTHON = "${python}/bin/python";
         NIX_MANYLINUX_RUNTIME_LIBS = "${runtimeLibs}/lib";
         NIX_MANYLINUX_GLIBC_DEV = "${pkgs24_05.glibc.dev}/include";
         NIX_MANYLINUX_GLIBC_BIN = "${pkgs24_05.glibc.bin}";
@@ -409,7 +426,6 @@
         NIX_CC = compilerCc;
       };
       shellHook = ''
-        export LD_LIBRARY_PATH="${runtimeLibs}/lib''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
         export CC="${compilerCc}/bin/cc"
         export CXX="${compilerCc}/bin/c++"
       '';
@@ -471,29 +487,32 @@
     };
     shell = mkBuildShell {
       name = "manylinux2014-reference-shell";
-      packages = [
-        pkgs22_05.gcc10.cc
-        pkgs.binutils
-        pkgs.patchelf
-        pkgs.pkg-config
-        pkgs.gnumake
-        pkgs.cmake
-        pkgs.python3
-        pkgs.python3Packages.pip
-        pkgs.python3Packages.build
-        pkgs.python3Packages.setuptools
-        pkgs.python3Packages.wheel
-        pkgs.python3Packages.auditwheel
-        runtimeLibs
-      ];
+      packages =
+        [
+          pkgs22_05.gcc10.cc
+          pkgs.binutils
+          pkgs.patchelf
+          pkgs.pkg-config
+          pkgs.gnumake
+          pkgs.cmake
+          python
+          pythonPkgs.pip
+        ]
+        ++ optionalPythonBuild pythonPkgs
+        ++ [
+          pythonPkgs.setuptools
+          pythonPkgs.wheel
+          runtimeLibs
+        ]
+        ++ optionalPythonPackage pythonPkgs "auditwheel";
       env = {
         AUDITWHEEL_POLICY = target.policy;
         NIX_MANYLINUX_TARGET = "manylinux2014_reference";
+        NIX_MANYLINUX_PYTHON = "${python}/bin/python";
         NIX_MANYLINUX_RUNTIME_LIBS = "${runtimeLibs}/lib";
         NIX_MANYLINUX_SYSROOT = manylinux2014Rootfs;
       };
       shellHook = ''
-        export LD_LIBRARY_PATH="${runtimeLibs}/lib''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
       '';
     };
   in {
@@ -587,31 +606,34 @@
       };
     shell = mkBuildShell {
       name = "manylinux2014-candidate-shell";
-      packages = [
-        compilerCc
-        pkgs.binutils
-        pkgs.patchelf
-        pkgs.pkg-config
-        pkgs.gnumake
-        pkgs.cmake
-        pkgs.python3
-        pkgs.python3Packages.pip
-        pkgs.python3Packages.build
-        pkgs.python3Packages.setuptools
-        pkgs.python3Packages.wheel
-        pkgs.python3Packages.auditwheel
-        reference2014.runtimeLibs
-      ];
+      packages =
+        [
+          compilerCc
+          pkgs.binutils
+          pkgs.patchelf
+          pkgs.pkg-config
+          pkgs.gnumake
+          pkgs.cmake
+          python
+          pythonPkgs.pip
+        ]
+        ++ optionalPythonBuild pythonPkgs
+        ++ [
+          pythonPkgs.setuptools
+          pythonPkgs.wheel
+          reference2014.runtimeLibs
+        ]
+        ++ optionalPythonPackage pythonPkgs "auditwheel";
       env = {
         AUDITWHEEL_POLICY = target.policy;
         NIX_MANYLINUX_TARGET = "manylinux2014_candidate";
+        NIX_MANYLINUX_PYTHON = "${python}/bin/python";
         NIX_MANYLINUX_RUNTIME_LIBS = "${reference2014.runtimeLibs}/lib";
         NIX_MANYLINUX_SYSROOT = manylinux2014Rootfs;
         NIX_MANYLINUX_STDCXX_NONSHARED = "${manylinux2014Rootfs}/opt/rh/devtoolset-10/root/usr/lib/gcc/x86_64-redhat-linux/10";
         NIX_CC = compilerCc;
       };
       shellHook = ''
-        export LD_LIBRARY_PATH="${reference2014.runtimeLibs}/lib''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
         export CC="${compilerCc}/bin/cc"
         export CXX="${compilerCc}/bin/c++"
       '';
@@ -667,30 +689,33 @@
 
     runtimeLibs = createLibraryBundle "${targetName}-runtime-libs" x86_64LibraryProviders target.libWhitelist;
 
-    buildInputs = with pkgs; [
-      compilerCc
-      binutils
-      patchelf
-      pkg-config
-      gnumake
-      cmake
-      python
-      pythonPkgs.pip
-      pythonPkgs.build
-      pythonPkgs.setuptools
-      pythonPkgs.wheel
-      pythonPkgs.auditwheel
-      glibc.dev
-      zlib.dev
-      expat.dev
-      glib.dev
-      libx11.dev
-      libxext.dev
-      libxrender.dev
-      libice.dev
-      libsm.dev
-      libGL.dev
-    ];
+    buildInputs = with pkgs;
+      [
+        compilerCc
+        binutils
+        patchelf
+        pkg-config
+        gnumake
+        cmake
+        python
+        pythonPkgs.pip
+      ]
+      ++ optionalPythonBuild pythonPkgs
+      ++ [
+        pythonPkgs.setuptools
+        pythonPkgs.wheel
+        glibc.dev
+        zlib.dev
+        expat.dev
+        glib.dev
+        libx11.dev
+        libxext.dev
+        libxrender.dev
+        libice.dev
+        libsm.dev
+        libGL.dev
+      ]
+      ++ optionalPythonPackage pythonPkgs "auditwheel";
 
     conformanceReport = mkConformanceReport {
       name = "${targetName}-conformance-report";
@@ -715,10 +740,10 @@
         NIX_MANYLINUX_TARGET = targetName;
         NIX_MANYLINUX_COMPILER = target.preferredCompilerAttr or "stdenv.cc";
         NIX_MANYLINUX_GLIBC_FLOOR = target.glibcFloor;
+        NIX_MANYLINUX_PYTHON = "${python}/bin/python";
         NIX_MANYLINUX_RUNTIME_LIBS = "${runtimeLibs}/lib";
       };
       shellHook = ''
-        export LD_LIBRARY_PATH="${runtimeLibs}/lib''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
       '';
     };
   in {

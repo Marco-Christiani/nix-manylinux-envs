@@ -88,21 +88,21 @@
     // {
       nixpkgsRef = "hybrid(glibc-2.28, gcc14-frontend, gcc8-runtime, fs-compat)";
       notes = "Probe using the first-class manylinux_2_28 candidate env.";
-      pythonAttr = "python3";
+      pythonAttr = "python312";
     };
   candidate234Target =
     buildEnvs.manylinux_2_34_candidate.target
     // {
       nixpkgsRef = "mostly-coherent(nixos-22.05 + zlib-1.2.9)";
       notes = "Probe using the first-class manylinux_2_34 candidate env.";
-      pythonAttr = "python3";
+      pythonAttr = "python312";
     };
   candidate2014Target =
     buildEnvs.manylinux2014_candidate.target
     // {
       nixpkgsRef = "official-manylinux2014-rootfs + devtoolset10-frontend";
       notes = "Probe using the first-class manylinux2014 candidate env.";
-      pythonAttr = "python3";
+      pythonAttr = "python312";
     };
 
   mkCandidateProbe = {
@@ -173,7 +173,7 @@
     // {
       nixpkgsRef = "mostly-coherent(nixos-24.05 gcc14)";
       notes = "Probe using the first-class manylinux_2_39 candidate env.";
-      pythonAttr = "python3";
+      pythonAttr = "python312";
     };
   candidate239Probes = mkCandidateProbeSet {
     inherit (buildEnvs.manylinux_2_39_candidate) compilerCc;

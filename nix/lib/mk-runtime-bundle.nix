@@ -14,7 +14,11 @@
           find "$dir" -maxdepth 1 -type f,l | while read -r candidate; do
             base=$(basename "$candidate")
             case " ${lib.concatStringsSep " " sonames} " in
-              *" $base "*) ln -s "$candidate" "$out/lib/$base" ;;
+              *" $base "*)
+                if [ ! -e "$out/lib/$base" ]; then
+                  ln -s "$candidate" "$out/lib/$base"
+                fi
+                ;;
             esac
           done
         fi
