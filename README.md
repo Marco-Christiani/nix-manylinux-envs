@@ -32,6 +32,7 @@ Validation means:
 - `scripts/conformance_report.py`: surface conformance reporting
 - `scripts/probe_suite_summary.py`: candidate probe-suite summary generation
 - `scripts/official_manylinux_probe_matrix.sh`: official-image cross-check helper
+- `scripts/build_external_package.sh`: real-package build and optional repair helper
 
 ## Flake Surfaces
 
@@ -119,6 +120,38 @@ Examples:
 ```
 
 The script prefers versioned `python3.x` binaries from `PATH` inside the image and falls back to internal manylinux layouts when needed.
+
+### Real Package Validation
+
+Use `build_external_package.sh` to build source distributions inside a target shell.
+
+```bash
+./scripts/build_external_package.sh \
+  manylinux_2_28_candidate \
+  /path/to/package-sdist \
+  /tmp/package-build \
+  setuptools wheel auditwheel build
+```
+
+Repair behavior is explicit:
+- `--repair-mode none`
+  - build raw wheel and run `auditwheel show`
+- `--repair-mode auto`
+  - repair using `auditwheel`'s default platform selection
+- `--repair-mode target`
+  - repair using `--plat ${AUDITWHEEL_POLICY}_x86_64`
+  - this matches the multi-tag style commonly seen in published wheels for modern targets
+
+Example:
+
+```bash
+./scripts/build_external_package.sh \
+  --repair-mode target \
+  manylinux_2_28_candidate \
+  /path/to/package-sdist \
+  /tmp/package-build \
+  setuptools wheel auditwheel build
+```
 
 ## Probe Suites
 

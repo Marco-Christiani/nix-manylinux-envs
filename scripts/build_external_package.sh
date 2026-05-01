@@ -1,10 +1,57 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+REPAIR_MODE="${NIX_MANYLINUX_REPAIR_MODE:-none}"
+
+usage() {
+  cat >&2 <<'EOF'
+usage: build_external_package.sh [--repair-mode none|auto|target] TARGET_ATTR SOURCE_DIR OUT_DIR [extra pip packages...]
+
+repair modes:
+  none    build raw wheel and run auditwheel show only
+  auto    repair wheel with auditwheel's default platform selection
+  target  repair wheel with --plat set from the target shell policy
+EOF
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --repair-mode)
+      [ "$#" -ge 2 ] || {
+        usage
+        exit 2
+      }
+      REPAIR_MODE=$2
+      shift 2
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    --*)
+      echo "unknown option: $1" >&2
+      usage
+      exit 2
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
 if [ "$#" -lt 3 ]; then
-  echo "usage: $0 TARGET_ATTR SOURCE_DIR OUT_DIR [extra pip packages...]" >&2
+  usage
   exit 2
 fi
+
+case "$REPAIR_MODE" in
+  none|auto|target) ;;
+  *)
+    echo "invalid repair mode: $REPAIR_MODE" >&2
+    usage
+    exit 2
+    ;;
+esac
 
 TARGET_ATTR=$1
 SOURCE_DIR=$2
@@ -26,6 +73,7 @@ nix develop "$REPO_ROOT#${TARGET_ATTR}" -c bash -lc '
   set -euo pipefail
 
   pybin="${NIX_MANYLINUX_PYTHON:-python}"
+  repair_mode="'"$REPAIR_MODE"'"
 
   workdir=$(mktemp -d)
   trap "rm -rf \"$workdir\"" EXIT
@@ -40,6 +88,19 @@ nix develop "$REPO_ROOT#${TARGET_ATTR}" -c bash -lc '
   .venv/bin/python -m pip install -U pip setuptools wheel '"$EXTRA_PIP_ARGS"' > "'"$OUT_DIR"'/pip.log" 2>&1
   .venv/bin/python -m pip wheel --no-build-isolation --no-deps . -w "'"$OUT_DIR"'/dist" > "'"$OUT_DIR"'/build.log" 2>&1
   .venv/bin/python -m auditwheel show "'"$OUT_DIR"'/dist"/*.whl > "'"$OUT_DIR"'/auditwheel.txt" 2>&1
+
+  case "$repair_mode" in
+    none)
+      ;;
+    auto)
+      mkdir -p "'"$OUT_DIR"'/repaired"
+      .venv/bin/python -m auditwheel repair -w "'"$OUT_DIR"'/repaired" "'"$OUT_DIR"'/dist"/*.whl > "'"$OUT_DIR"'/repair.log" 2>&1
+      ;;
+    target)
+      mkdir -p "'"$OUT_DIR"'/repaired"
+      .venv/bin/python -m auditwheel repair --plat "${AUDITWHEEL_POLICY}_x86_64" -w "'"$OUT_DIR"'/repaired" "'"$OUT_DIR"'/dist"/*.whl > "'"$OUT_DIR"'/repair.log" 2>&1
+      ;;
+  esac
 '
 
 cat "$OUT_DIR/auditwheel.txt"
