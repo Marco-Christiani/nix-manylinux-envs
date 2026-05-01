@@ -62,21 +62,52 @@
 
   mkFilesystemCompatShim = {
     frontendCc,
+    runtimeCc,
     runtimeLib,
+    useFullFrontendArchive ? false,
   }:
     pkgs.runCommand "manylinux-fscompat-shim" {nativeBuildInputs = [pkgs.binutils pkgs.gcc];} ''
       mkdir -p "$out/lib" work
       cd work
-      ar x ${frontendCc}/lib/libstdc++.a fs_dir.o fs_ops.o fs_path.o
+      frontend_archive=${frontendCc}/lib/libstdc++.a
+      if [ "${
+        if useFullFrontendArchive
+        then "1"
+        else "0"
+      }" = 1 ]; then
+        ln -s "$frontend_archive" "$out/lib/libstdc++_frontend.a"
+      else
+        ar x "$frontend_archive" fs_dir.o fs_ops.o fs_path.o functexcept.o
+      fi
+      runtime_archive=$("${runtimeCc}/bin/g++" -print-file-name=libstdc++.a)
+      mkdir runtime-eh
+      (
+        cd runtime-eh
+        for obj in $(ar t "$runtime_archive" | grep '^eh_.*\.o$'); do
+          ar x "$runtime_archive" "$obj"
+        done
+      )
       cat > compat.c <<'SRC'
       char __libc_single_threaded = 0;
       SRC
       ${pkgs.gcc}/bin/cc -c compat.c -o compat.o
-      ar rcs "$out/lib/libstdc++_nonshared.a" fs_dir.o fs_ops.o fs_path.o compat.o
+      if [ "${
+        if useFullFrontendArchive
+        then "1"
+        else "0"
+      }" = 1 ]; then
+        ar rcs "$out/lib/libstdc++_nonshared.a" runtime-eh/*.o compat.o
+      else
+        ar rcs "$out/lib/libstdc++_nonshared.a" fs_dir.o fs_ops.o fs_path.o functexcept.o runtime-eh/*.o compat.o
+      fi
       cat > "$out/lib/libstdc++.so" <<'SCRIPT'
       /* GNU ld script */
       OUTPUT_FORMAT(elf64-x86-64)
-      INPUT ( ${runtimeLib}/lib/libstdc++.so.6 libstdc++_nonshared.a ${runtimeLib}/lib/libstdc++.so.6 )
+      INPUT ( ${runtimeLib}/lib/libstdc++.so.6 ${
+        if useFullFrontendArchive
+        then "libstdc++_frontend.a "
+        else ""
+      }libstdc++_nonshared.a ${runtimeLib}/lib/libstdc++.so.6 )
       SCRIPT
     '';
 
@@ -88,7 +119,9 @@
     frontendLib = lib.getLib frontendCc;
     filesystemCompatShim = mkFilesystemCompatShim {
       inherit frontendCc;
+      runtimeCc = runtimeCompiler;
       runtimeLib = runtimeCompilerLib;
+      useFullFrontendArchive = true;
     };
     wrappedBintools = pkgs.wrapBintoolsWith {
       inherit (pkgs.stdenv.cc.bintools) bintools;
@@ -214,6 +247,7 @@
     frontendLib = lib.getLib frontendCc;
     filesystemCompatShim = mkFilesystemCompatShim {
       inherit frontendCc;
+      runtimeCc = runtimeCompiler;
       runtimeLib = runtimeCompilerLib;
     };
     wrappedBintools = pkgs.wrapBintoolsWith {
