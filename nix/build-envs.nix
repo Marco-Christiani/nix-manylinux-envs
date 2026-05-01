@@ -203,7 +203,7 @@
         [
           compilerCc
           pkgs20_03.binutils
-          pkgs20_03.patchelf
+          pkgs.patchelf
           pkgs20_03.pkg-config
           pkgs20_03.gnumake
           pkgs.cmake
@@ -328,7 +328,7 @@
         [
           compilerCc
           pkgs22_05.binutils
-          pkgs22_05.patchelf
+          pkgs.patchelf
           pkgs22_05.pkg-config
           pkgs22_05.gnumake
           pkgs.cmake
@@ -434,7 +434,7 @@
         [
           compilerCc
           pkgs24_05.binutils
-          pkgs24_05.patchelf
+          pkgs.patchelf
           pkgs24_05.pkg-config
           pkgs24_05.gnumake
           pkgs.cmake
