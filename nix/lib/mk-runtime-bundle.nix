@@ -1,8 +1,7 @@
 {
   lib,
   pkgs,
-}:
-let
+}: let
   createLibraryBundle = name: libraryProviders: sonames: let
     libDirs =
       lib.unique

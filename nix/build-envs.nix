@@ -13,7 +13,7 @@
   pkgs20_03 = import inputs.nixpkgs-20_03.outPath {inherit system;};
   pkgs21_05 = import inputs.nixpkgs-21_05.outPath {inherit system;};
   pkgs22_05 = import inputs.nixpkgs-22_05.outPath {inherit system;};
-  pkgs22_11 = import inputs.nixpkgs-22_11.outPath {inherit system;};
+  pkgs24_05 = import inputs.nixpkgs-24_05.outPath {inherit system;};
   extractDockerRootfs = import ./lib/extract-docker-rootfs.nix {inherit pkgs;};
   runtimeBundleLib = import ./lib/mk-runtime-bundle.nix {inherit lib pkgs;};
   createLibraryBundle = runtimeBundleLib.createLibraryBundle;
@@ -36,10 +36,6 @@
   };
 
   getLibOutputs = lib.mapAttrs (_: drv: lib.getLib drv);
-  getOr = attrs: name: fallback:
-    if builtins.hasAttr name attrs
-    then builtins.getAttr name attrs
-    else fallback;
   getXorg = attrs: name:
     if builtins.hasAttr "xorg" attrs && builtins.hasAttr name attrs.xorg
     then builtins.getAttr name attrs.xorg
@@ -309,6 +305,107 @@
         NIX_MANYLINUX_GLIBC_BIN = "${pkgs22_05.glibc.bin}";
         NIX_MANYLINUX_STDCXX = "${runtimeCompilerLib}/lib";
         NIX_MANYLINUX_STDCXX_NONSHARED = "${filesystemCompatShim}/lib";
+        NIX_CC = compilerCc;
+      };
+      shellHook = ''
+        export LD_LIBRARY_PATH="${runtimeLibs}/lib''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+        export CC="${compilerCc}/bin/cc"
+        export CXX="${compilerCc}/bin/c++"
+      '';
+    };
+  in {
+    inherit runtimeLibs conformanceReport shell compilerCc;
+    target = candidateTarget;
+  };
+
+  candidate239 = let
+    target = policyTargets.manylinux_2_39;
+    runtimeCompiler = pkgs24_05.gcc14.cc;
+    runtimeCompilerLib = lib.getLib runtimeCompiler;
+    wrappedBintools = pkgs.wrapBintoolsWith {
+      bintools = pkgs.stdenv.cc.bintools.bintools;
+      libc = pkgs24_05.glibc;
+    };
+    compilerCc = pkgs.wrapCCWith {
+      cc = runtimeCompiler;
+      bintools = wrappedBintools;
+      libc = pkgs24_05.glibc;
+    };
+    runtimeProviders = getLibOutputs {
+      "libatomic.so.1" = runtimeCompiler;
+      "libgcc_s.so.1" = runtimeCompiler;
+      "libstdc++.so.6" = runtimeCompiler;
+      "libm.so.6" = pkgs24_05.glibc;
+      "libmvec.so.1" = pkgs24_05.glibc;
+      "libanl.so.1" = pkgs24_05.glibc;
+      "libdl.so.2" = pkgs24_05.glibc;
+      "librt.so.1" = pkgs24_05.glibc;
+      "libc.so.6" = pkgs24_05.glibc;
+      "libnsl.so.1" = pkgs24_05.glibc;
+      "libutil.so.1" = pkgs24_05.glibc;
+      "libpthread.so.0" = pkgs24_05.glibc;
+      "libresolv.so.2" = pkgs24_05.glibc;
+      "libcrypt.so.1" = pkgs24_05.libxcrypt;
+      "libX11.so.6" = getXorg pkgs24_05 "libX11";
+      "libXext.so.6" = getXorg pkgs24_05 "libXext";
+      "libXrender.so.1" = getXorg pkgs24_05 "libXrender";
+      "libICE.so.6" = getXorg pkgs24_05 "libICE";
+      "libSM.so.6" = getXorg pkgs24_05 "libSM";
+      "libGL.so.1" = pkgs24_05.libglvnd;
+      "libgobject-2.0.so.0" = pkgs24_05.glib;
+      "libgthread-2.0.so.0" = pkgs24_05.glib;
+      "libglib-2.0.so.0" = pkgs24_05.glib;
+      "libz.so.1" = pkgs24_05.zlib;
+      "libexpat.so.1" = pkgs24_05.expat;
+    };
+    runtimeLibs = createLibraryBundle "manylinux_2_39-candidate-runtime-libs" runtimeProviders target.libWhitelist;
+    candidateTarget =
+      target
+      // {
+        name = "manylinux_2_39_candidate";
+        expectedGlibc = "2.39";
+        actualLibcVersion = "2.39";
+        compilerRef = "nixos-24.05 gcc14 frontend/runtime";
+        stdcxxRef = "nixos-24.05 gcc14 shared runtime";
+        stdcxxPkgs = pkgs24_05;
+        notes =
+          target.notes
+          + " Candidate mostly-coherent baseline: glibc 2.39 and gcc14 runtime from nixos-24.05 with no rootfs import.";
+      };
+    conformanceReport = mkConformanceReport {
+      name = "manylinux_2_39-candidate-conformance-report";
+      target = builtins.removeAttrs candidateTarget ["stdcxxPkgs"];
+      runtimeLibs = runtimeLibs;
+      cc = "${compilerCc}/bin/cc";
+      libc = "${lib.getLib pkgs24_05.glibc}/lib/libc.so.6";
+      libstdcxx = "${runtimeCompilerLib}/lib/libstdc++.so.6";
+      libatomic = "${runtimeCompilerLib}/lib/libatomic.so.1";
+      zlib = "${lib.getLib pkgs24_05.zlib}/lib/libz.so.1";
+    };
+    shell = mkBuildShell {
+      name = "manylinux_2_39-candidate-shell";
+      packages = [
+        compilerCc
+        pkgs24_05.binutils
+        pkgs24_05.patchelf
+        pkgs24_05.pkg-config
+        pkgs24_05.gnumake
+        pkgs24_05.cmake
+        pkgs24_05.python3
+        pkgs24_05.python3Packages.pip
+        pkgs24_05.python3Packages.build
+        pkgs24_05.python3Packages.setuptools
+        pkgs24_05.python3Packages.wheel
+        pkgs24_05.python3Packages.auditwheel
+        runtimeLibs
+      ];
+      env = {
+        AUDITWHEEL_POLICY = target.policy;
+        NIX_MANYLINUX_TARGET = "manylinux_2_39_candidate";
+        NIX_MANYLINUX_RUNTIME_LIBS = "${runtimeLibs}/lib";
+        NIX_MANYLINUX_GLIBC_DEV = "${pkgs24_05.glibc.dev}/include";
+        NIX_MANYLINUX_GLIBC_BIN = "${pkgs24_05.glibc.bin}";
+        NIX_MANYLINUX_STDCXX = "${runtimeCompilerLib}/lib";
         NIX_CC = compilerCc;
       };
       shellHook = ''
@@ -633,6 +730,8 @@ in {
   manylinux2014_candidate = candidate2014;
   manylinux_2_28 = mkTarget "manylinux_2_28";
   manylinux_2_34 = mkTarget "manylinux_2_34";
+  manylinux_2_39 = mkTarget "manylinux_2_39";
   manylinux_2_28_candidate = candidate228;
   manylinux_2_34_candidate = candidate234;
+  manylinux_2_39_candidate = candidate239;
 }

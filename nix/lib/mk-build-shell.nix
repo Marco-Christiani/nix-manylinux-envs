@@ -1,7 +1,4 @@
-{
-  pkgs,
-}:
-{
+{pkgs}: {
   name,
   packages,
   env ? {},

@@ -24,6 +24,11 @@
 #include <charconv>
 #endif
 
+#if defined(BASELINE_PROBE_ENABLE_GLIBC_239)
+#include <stdbit.h>
+#undef stdc_leading_zeros_ui
+#endif
+
 static void touch_newer_symbols(std::ostringstream &out) {
 #ifdef __GLIBC_PREREQ
 #if __GLIBC_PREREQ(2, 27)
@@ -46,6 +51,14 @@ static void touch_newer_symbols(std::ostringstream &out) {
     (void)close_range(3, 3, 0);
     out << " glibc_api=close_range";
   }
+#endif
+#if __GLIBC_PREREQ(2, 39)
+#if defined(BASELINE_PROBE_ENABLE_GLIBC_239)
+        {
+          auto value = stdc_leading_zeros_ui(17u);
+          out << " glibc_api=stdc_leading_zeros_ui:" << value;
+        }
+#endif
 #endif
 #endif
 }

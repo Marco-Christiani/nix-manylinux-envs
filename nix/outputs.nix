@@ -45,6 +45,10 @@
       extraCxxFlags = ["-DBASELINE_PROBE_ENABLE_RANDOM_DEVICE=1"];
       notes = "Adds std::random_device pressure.";
     };
+    glibc-239 = {
+      extraCxxFlags = ["-DBASELINE_PROBE_ENABLE_GLIBC_239=1"];
+      notes = "Adds glibc 2.39 stdbit pressure.";
+    };
   };
 
   probeSuites = {
@@ -59,6 +63,14 @@
       "pmr"
       "shared-state"
       "random-device"
+    ];
+    modern239 = [
+      "baseline"
+      "float-charconv"
+      "pmr"
+      "shared-state"
+      "random-device"
+      "glibc-239"
     ];
   };
 
@@ -156,22 +168,49 @@
     baseTarget = candidate2014Target;
     stdcxxPkgs = null;
   };
+  candidate239Target =
+    buildEnvs.manylinux_2_39_candidate.target
+    // {
+      nixpkgsRef = "mostly-coherent(nixos-24.05 gcc14)";
+      notes = "Probe using the first-class manylinux_2_39 candidate env.";
+      pythonAttr = "python3";
+    };
+  candidate239Probes = mkCandidateProbeSet {
+    compilerCc = buildEnvs.manylinux_2_39_candidate.compilerCc;
+    distPkgs = import inputs.nixpkgs-24_05.outPath {inherit system;};
+    baseTarget = candidate239Target;
+    stdcxxPkgs = buildEnvs.manylinux_2_39_candidate.target.stdcxxPkgs;
+  };
 
   candidateProbeSets = {
     manylinux_2_28_candidate = {
       probes = candidate228Probes;
       expectedTag = "manylinux_2_28_x86_64";
       suite = probeSuites.modern;
+      exactExpectations =
+        lib.genAttrs probeSuites.modern (_: "manylinux_2_28_x86_64");
     };
     manylinux_2_34_candidate = {
       probes = candidate234Probes;
       expectedTag = "manylinux_2_34_x86_64";
       suite = probeSuites.modern;
+      exactExpectations =
+        lib.genAttrs probeSuites.modern (_: "manylinux_2_34_x86_64");
+    };
+    manylinux_2_39_candidate = {
+      probes = candidate239Probes;
+      expectedTag = "manylinux_2_39_x86_64";
+      suite = probeSuites.modern239;
+      exactExpectations = {
+        glibc-239 = "manylinux_2_39_x86_64";
+      };
     };
     manylinux2014_candidate = {
       probes = candidate2014Probes;
       expectedTag = "manylinux_2_17_x86_64";
       suite = probeSuites.legacy2014;
+      exactExpectations =
+        lib.genAttrs probeSuites.legacy2014 (_: "manylinux_2_17_x86_64");
     };
   };
 
@@ -226,12 +265,14 @@
     targetTag,
     probeSet,
     suite,
+    exactExpectations ? {},
   }:
     pkgs.runCommand "${name}-probe-suite-summary.json"
     {nativeBuildInputs = [pkgs.python3];}
     ''
       python ${../scripts/probe_suite_summary.py} \
         --target ${targetTag} \
+        ${lib.concatStringsSep " " (lib.mapAttrsToList (probeName: expectedTag: "--exact ${probeName}=${expectedTag}") exactExpectations)} \
         --reports ${lib.concatStringsSep " " (map (probeName: "${probeSet.${probeName}.showReport}/report.txt") suite)} \
         --output "$out"
     '';
@@ -245,6 +286,7 @@
           targetTag = value.expectedTag;
           probeSet = value.probes;
           suite = value.suite;
+          exactExpectations = value.exactExpectations or {};
         }
     )
     candidateProbeSets;
@@ -257,33 +299,34 @@
       '';
     };
 
-  apps = {
-    default = {
-      type = "app";
-      program = "${mkCatApp "show-manylinux-policy-targets" showPolicyTargetsJson}/bin/show-manylinux-policy-targets";
-    };
-    show-targets = {
-      type = "app";
-      program = "${mkCatApp "show-manylinux-probe-targets" showTargetsJson}/bin/show-manylinux-probe-targets";
-    };
-    show-policy-targets = {
-      type = "app";
-      program = "${mkCatApp "show-manylinux-policy-targets" showPolicyTargetsJson}/bin/show-manylinux-policy-targets";
-    };
-    show-conformance = {
-      type = "app";
-      program = "${mkCatApp "show-manylinux-conformance" showConformanceJson}/bin/show-manylinux-conformance";
-    };
-  }
-  // lib.mapAttrs'
-  (
-    name: summary:
-      lib.nameValuePair "show-${builtins.replaceStrings ["_"] ["-"] name}-probe-suite" {
+  apps =
+    {
+      default = {
         type = "app";
-        program = "${mkCatApp "show-${builtins.replaceStrings ["_"] ["-"] name}-probe-suite" summary}/bin/show-${builtins.replaceStrings ["_"] ["-"] name}-probe-suite";
-      }
-  )
-  candidateProbeSuiteSummaries;
+        program = "${mkCatApp "show-manylinux-policy-targets" showPolicyTargetsJson}/bin/show-manylinux-policy-targets";
+      };
+      show-targets = {
+        type = "app";
+        program = "${mkCatApp "show-manylinux-probe-targets" showTargetsJson}/bin/show-manylinux-probe-targets";
+      };
+      show-policy-targets = {
+        type = "app";
+        program = "${mkCatApp "show-manylinux-policy-targets" showPolicyTargetsJson}/bin/show-manylinux-policy-targets";
+      };
+      show-conformance = {
+        type = "app";
+        program = "${mkCatApp "show-manylinux-conformance" showConformanceJson}/bin/show-manylinux-conformance";
+      };
+    }
+    // lib.mapAttrs'
+    (
+      name: summary:
+        lib.nameValuePair "show-${builtins.replaceStrings ["_"] ["-"] name}-probe-suite" {
+          type = "app";
+          program = "${mkCatApp "show-${builtins.replaceStrings ["_"] ["-"] name}-probe-suite" summary}/bin/show-${builtins.replaceStrings ["_"] ["-"] name}-probe-suite";
+        }
+    )
+    candidateProbeSuiteSummaries;
 
   probePackages =
     lib.mapAttrs'

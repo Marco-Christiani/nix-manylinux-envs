@@ -20,10 +20,7 @@
     nixpkgs-24_05.url = "github:NixOS/nixpkgs/nixos-24.05";
   };
 
-  outputs = inputs @ {
-    flake-parts,
-    ...
-  }:
+  outputs = inputs @ {flake-parts, ...}:
     flake-parts.lib.mkFlake {inherit inputs;} {
       systems = ["x86_64-linux"];
 
@@ -36,7 +33,8 @@
           inherit inputs system;
         };
       in {
-        inherit (outputs)
+        inherit
+          (outputs)
           apps
           checks
           devShells

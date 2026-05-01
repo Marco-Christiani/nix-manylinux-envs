@@ -3,8 +3,7 @@
   pkgs,
   conformanceScript,
   python,
-}:
-{
+}: {
   name,
   target,
   libc,
@@ -14,8 +13,7 @@
   cc,
   runtimeLibs,
   extraTargetAttrs ? {},
-}:
-let
+}: let
   targetJson = pkgs.writeText "${name}-target.json" (
     builtins.toJSON (target // extraTargetAttrs)
   );
