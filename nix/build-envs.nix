@@ -173,7 +173,7 @@
           pkgs20_03.patchelf
           pkgs20_03.pkg-config
           pkgs20_03.gnumake
-          pkgs20_03.cmake
+          pkgs.cmake
           python
           pythonPkgs.pip
         ]
@@ -297,7 +297,7 @@
           pkgs22_05.patchelf
           pkgs22_05.pkg-config
           pkgs22_05.gnumake
-          pkgs22_05.cmake
+          pkgs.cmake
           python
           pythonPkgs.pip
         ]
@@ -403,7 +403,7 @@
           pkgs24_05.patchelf
           pkgs24_05.pkg-config
           pkgs24_05.gnumake
-          pkgs24_05.cmake
+          pkgs.cmake
           python
           pythonPkgs.pip
         ]
