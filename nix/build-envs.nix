@@ -16,8 +16,8 @@
   pkgs24_05 = import inputs.nixpkgs-24_05.outPath {inherit system;};
   extractDockerRootfs = import ./lib/extract-docker-rootfs.nix {inherit pkgs;};
   runtimeBundleLib = import ./lib/mk-runtime-bundle.nix {inherit lib pkgs;};
-  createLibraryBundle = runtimeBundleLib.createLibraryBundle;
-  createLibraryBundleFromPaths = runtimeBundleLib.createLibraryBundleFromPaths;
+  inherit (runtimeBundleLib) createLibraryBundle;
+  inherit (runtimeBundleLib) createLibraryBundleFromPaths;
   mkConformanceReport = import ./lib/mk-conformance-report.nix {
     inherit lib pkgs conformanceScript python;
   };
@@ -87,7 +87,7 @@
       runtimeLib = runtimeCompilerLib;
     };
     wrappedBintools = pkgs.wrapBintoolsWith {
-      bintools = pkgs.stdenv.cc.bintools.bintools;
+      inherit (pkgs.stdenv.cc.bintools) bintools;
       libc = glibc228;
     };
     compilerCc = pkgs.wrapCCWith {
@@ -153,7 +153,7 @@
     conformanceReport = mkConformanceReport {
       name = "manylinux_2_28-candidate-conformance-report";
       target = builtins.removeAttrs candidateTarget ["stdcxxPkgs"];
-      runtimeLibs = runtimeLibs;
+      inherit runtimeLibs;
       cc = "${compilerCc}/bin/cc";
       libc = "${lib.getLib glibc228}/lib/libc.so.6";
       libstdcxx = "${runtimeCompilerLib}/lib/libstdc++.so.6";
@@ -209,7 +209,7 @@
       runtimeLib = runtimeCompilerLib;
     };
     wrappedBintools = pkgs.wrapBintoolsWith {
-      bintools = pkgs.stdenv.cc.bintools.bintools;
+      inherit (pkgs.stdenv.cc.bintools) bintools;
       libc = pkgs22_05.glibc;
     };
     compilerCc = pkgs.wrapCCWith {
@@ -273,7 +273,7 @@
     conformanceReport = mkConformanceReport {
       name = "manylinux_2_34-candidate-conformance-report";
       target = builtins.removeAttrs candidateTarget ["stdcxxPkgs"];
-      runtimeLibs = runtimeLibs;
+      inherit runtimeLibs;
       cc = "${compilerCc}/bin/cc";
       libc = "${lib.getLib pkgs22_05.glibc}/lib/libc.so.6";
       libstdcxx = "${runtimeCompilerLib}/lib/libstdc++.so.6";
@@ -323,7 +323,7 @@
     runtimeCompiler = pkgs24_05.gcc14.cc;
     runtimeCompilerLib = lib.getLib runtimeCompiler;
     wrappedBintools = pkgs.wrapBintoolsWith {
-      bintools = pkgs.stdenv.cc.bintools.bintools;
+      inherit (pkgs.stdenv.cc.bintools) bintools;
       libc = pkgs24_05.glibc;
     };
     compilerCc = pkgs.wrapCCWith {
@@ -375,7 +375,7 @@
     conformanceReport = mkConformanceReport {
       name = "manylinux_2_39-candidate-conformance-report";
       target = builtins.removeAttrs candidateTarget ["stdcxxPkgs"];
-      runtimeLibs = runtimeLibs;
+      inherit runtimeLibs;
       cc = "${compilerCc}/bin/cc";
       libc = "${lib.getLib pkgs24_05.glibc}/lib/libc.so.6";
       libstdcxx = "${runtimeCompilerLib}/lib/libstdc++.so.6";
@@ -462,7 +462,7 @@
     conformanceReport = mkConformanceReport {
       name = "manylinux2014-reference-conformance-report";
       target = referenceTarget;
-      runtimeLibs = runtimeLibs;
+      inherit runtimeLibs;
       cc = "${pkgs22_05.gcc10.cc}/bin/gcc";
       libc = "${manylinux2014Rootfs}/usr/lib64/libc.so.6";
       libstdcxx = "${manylinux2014Rootfs}/usr/lib64/libstdc++.so.6";
@@ -618,8 +618,8 @@
     };
   in {
     inherit compilerCc shell;
-    runtimeLibs = reference2014.runtimeLibs;
-    conformanceReport = reference2014.conformanceReport;
+    inherit (reference2014) runtimeLibs;
+    inherit (reference2014) conformanceReport;
     target = candidateTarget;
   };
 
@@ -694,8 +694,8 @@
 
     conformanceReport = mkConformanceReport {
       name = "${targetName}-conformance-report";
-      target = target;
-      runtimeLibs = runtimeLibs;
+      inherit target;
+      inherit runtimeLibs;
       cc = "${compilerCc}/bin/cc";
       libc = "${lib.getLib pkgs.glibc}/lib/libc.so.6";
       libstdcxx = "${compilerLib}/lib/libstdc++.so.6";

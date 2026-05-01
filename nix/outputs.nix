@@ -78,7 +78,7 @@
     import ./probe-wheel.nix {
       inherit lib;
       hostPkgs = pkgs;
-      pkgs = targets.${targetName}.pkgs;
+      inherit (targets.${targetName}) pkgs;
       target = targets.${targetName};
       src = ../probe;
     };
@@ -151,19 +151,19 @@
     probeVariantDefs;
 
   candidate228Probes = mkCandidateProbeSet {
-    compilerCc = buildEnvs.manylinux_2_28_candidate.compilerCc;
+    inherit (buildEnvs.manylinux_2_28_candidate) compilerCc;
     distPkgs = import inputs.nixpkgs-20_03.outPath {inherit system;};
     baseTarget = candidate228Target;
-    stdcxxPkgs = buildEnvs.manylinux_2_28_candidate.target.stdcxxPkgs;
+    inherit (buildEnvs.manylinux_2_28_candidate.target) stdcxxPkgs;
   };
   candidate234Probes = mkCandidateProbeSet {
-    compilerCc = buildEnvs.manylinux_2_34_candidate.compilerCc;
+    inherit (buildEnvs.manylinux_2_34_candidate) compilerCc;
     distPkgs = import inputs.nixpkgs-22_05.outPath {inherit system;};
     baseTarget = candidate234Target;
-    stdcxxPkgs = buildEnvs.manylinux_2_34_candidate.target.stdcxxPkgs;
+    inherit (buildEnvs.manylinux_2_34_candidate.target) stdcxxPkgs;
   };
   candidate2014Probes = mkCandidateProbeSet {
-    compilerCc = buildEnvs.manylinux2014_candidate.compilerCc;
+    inherit (buildEnvs.manylinux2014_candidate) compilerCc;
     distPkgs = import inputs.nixpkgs-22_05.outPath {inherit system;};
     baseTarget = candidate2014Target;
     stdcxxPkgs = null;
@@ -176,10 +176,10 @@
       pythonAttr = "python3";
     };
   candidate239Probes = mkCandidateProbeSet {
-    compilerCc = buildEnvs.manylinux_2_39_candidate.compilerCc;
+    inherit (buildEnvs.manylinux_2_39_candidate) compilerCc;
     distPkgs = import inputs.nixpkgs-24_05.outPath {inherit system;};
     baseTarget = candidate239Target;
-    stdcxxPkgs = buildEnvs.manylinux_2_39_candidate.target.stdcxxPkgs;
+    inherit (buildEnvs.manylinux_2_39_candidate.target) stdcxxPkgs;
   };
 
   candidateProbeSets = {
@@ -230,11 +230,11 @@
       map (targetName: let
         target = targets.${targetName};
       in {
-        name = target.name;
-        nixpkgsRef = target.nixpkgsRef;
-        expectedGlibc = target.expectedGlibc;
-        notes = target.notes;
-        pythonAttr = target.pythonAttr;
+        inherit (target) name;
+        inherit (target) nixpkgsRef;
+        inherit (target) expectedGlibc;
+        inherit (target) notes;
+        inherit (target) pythonAttr;
       })
       targetNames
     )
@@ -285,7 +285,7 @@
           inherit name;
           targetTag = value.expectedTag;
           probeSet = value.probes;
-          suite = value.suite;
+          inherit (value) suite;
           exactExpectations = value.exactExpectations or {};
         }
     )
