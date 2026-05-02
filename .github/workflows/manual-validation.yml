@@ -1,0 +1,101 @@
+name: Manual validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: Validation scope to run
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - checks
+          - official
+          - packages
+      package_selector:
+        description: Package selector for data/package-matrix.json
+        required: true
+        default: smoke
+        type: string
+      targets:
+        description: Comma-separated candidate dev shells for package validation
+        required: true
+        default: manylinux_2_28_candidate,manylinux_2_34_candidate
+        type: string
+      repair_mode:
+        description: Repair mode for package validation
+        required: true
+        default: target
+        type: choice
+        options:
+          - target
+          - auto
+          - none
+
+jobs:
+  validate:
+    name: ${{ inputs.scope }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: Show flake metadata
+        run: nix flake metadata --no-write-lock-file
+
+      - name: Run flake checks
+        if: ${{ inputs.scope == 'all' || inputs.scope == 'checks' }}
+        run: nix flake check --no-write-lock-file --print-build-logs
+
+      - name: Run official image probe cross-checks
+        if: ${{ inputs.scope == 'all' || inputs.scope == 'official' }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/official
+          ./scripts/official_manylinux_probe_matrix.sh \
+            quay.io/pypa/manylinux2014_x86_64 \
+            "$PWD/artifacts/official/manylinux2014" \
+            manylinux2014 \
+            legacy2014
+          ./scripts/official_manylinux_probe_matrix.sh \
+            quay.io/pypa/manylinux_2_28_x86_64 \
+            "$PWD/artifacts/official/manylinux_2_28" \
+            cp312-cp312 \
+            modern228
+          ./scripts/official_manylinux_probe_matrix.sh \
+            quay.io/pypa/manylinux_2_34_x86_64 \
+            "$PWD/artifacts/official/manylinux_2_34" \
+            cp312-cp312 \
+            modern234
+
+      - name: Run package matrix
+        if: ${{ inputs.scope == 'all' || inputs.scope == 'packages' }}
+        env:
+          PACKAGE_SELECTOR: ${{ inputs.package_selector }}
+          TARGETS: ${{ inputs.targets }}
+          REPAIR_MODE: ${{ inputs.repair_mode }}
+        run: |
+          set -euo pipefail
+          nix develop .#default -c python3 scripts/validate_package_matrix.py \
+            --out-dir artifacts/packages \
+            --packages "$PACKAGE_SELECTOR" \
+            --targets "$TARGETS" \
+            --repair-mode "$REPAIR_MODE"
+
+      - name: Upload validation artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: manylinux-validation-${{ github.run_id }}
+          path: artifacts
+          if-no-files-found: ignore

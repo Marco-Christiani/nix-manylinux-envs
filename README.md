@@ -62,6 +62,16 @@ Check outputs:
 
 ## Verification
 
+### Manual CI
+
+`.github/workflows/manual-validation.yml` provides a `workflow_dispatch` entry point with selectable scopes:
+- `checks`: run flake checks
+- `official`: run official manylinux image probe cross-checks
+- `packages`: run the real-package matrix
+- `all`: run every scope
+
+The package matrix is defined in `data/package-matrix.json`.
+
 ### Local Conformance
 
 ```bash
@@ -151,6 +161,16 @@ Example:
   /path/to/package-sdist \
   /tmp/package-build \
   setuptools wheel auditwheel build
+```
+
+Batch validation:
+
+```bash
+./scripts/validate_package_matrix.py \
+  --out-dir /tmp/manylinux-package-validation \
+  --packages smoke \
+  --targets manylinux_2_28_candidate,manylinux_2_34_candidate \
+  --repair-mode target
 ```
 
 ## Probe Suites
