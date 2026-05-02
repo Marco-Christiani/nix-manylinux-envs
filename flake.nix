@@ -24,6 +24,10 @@
     flake-parts.lib.mkFlake {inherit inputs;} {
       systems = ["x86_64-linux"];
 
+      flake.lib = {
+        mkManylinuxWheel = import ./nix/lib/mk-manylinux-wheel.nix;
+      };
+
       perSystem = {
         system,
         pkgs,

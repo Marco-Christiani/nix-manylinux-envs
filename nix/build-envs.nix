@@ -772,7 +772,10 @@
       env = {
         AUDITWHEEL_POLICY = target.policy;
         NIX_MANYLINUX_TARGET = targetName;
-        NIX_MANYLINUX_COMPILER = target.preferredCompilerAttr or "stdenv.cc";
+        NIX_MANYLINUX_COMPILER =
+          if (target.preferredCompilerAttr or null) == null
+          then "stdenv.cc"
+          else target.preferredCompilerAttr;
         NIX_MANYLINUX_GLIBC_FLOOR = target.glibcFloor;
         NIX_MANYLINUX_PYTHON = "${python}/bin/python";
         NIX_MANYLINUX_RUNTIME_LIBS = "${runtimeLibs}/lib";

@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  nix:
+    name: Nix validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: Evaluate flake
+        run: nix flake check --no-build --print-build-logs
+
+      - name: Check formatting
+        run: nix fmt -- --check ./
+
+      - name: Run statix
+        run: nix run nixpkgs#statix -- check .
+
+      - name: Build mkManylinuxWheel smoke package
+        run: nix build .#mk-manylinux-wheel-smoke --print-build-logs
+
+      - name: Import smoke wheel in Python slim container
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD/result/repaired:/wheel:ro" \
+            python:3.12-slim \
+            sh -lc 'python -m pip install --no-cache-dir --no-deps /wheel/*.whl && python -c "import smoke; print(smoke.answer())"'
+
+      - name: Upload smoke wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: mk-manylinux-wheel-smoke-${{ github.run_id }}
+          path: result/**
+          if-no-files-found: error

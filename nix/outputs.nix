@@ -20,6 +20,11 @@
     inherit inputs lib pkgs policyTargets system;
   };
   buildEnvNames = builtins.attrNames buildEnvs;
+  mkManylinuxWheel = import ./lib/mk-manylinux-wheel.nix;
+  mkManylinuxWheelSmoke = import ./mk-manylinux-wheel-smoke.nix {
+    inherit lib pkgs mkManylinuxWheel;
+    targetShell = buildEnvs.manylinux_2_28_candidate.shell;
+  };
 
   probeVariantDefs = {
     baseline = {
@@ -370,6 +375,7 @@
       targets-json = showTargetsJson;
       policy-targets-json = showPolicyTargetsJson;
       conformance-summary-json = showConformanceJson;
+      mk-manylinux-wheel-smoke = mkManylinuxWheelSmoke;
     }
     // lib.mapAttrs' (name: value: lib.nameValuePair "${name}-probe-suite-summary" value) candidateProbeSuiteSummaries
     // buildEnvPackages
@@ -379,6 +385,9 @@
   checks =
     floorChecks
     // conformanceChecks
+    // {
+      mk-manylinux-wheel-smoke = mkManylinuxWheelSmoke;
+    }
     // lib.mapAttrs' (name: value: lib.nameValuePair "${name}-probe-suite" value) candidateProbeSuiteSummaries;
 
   devShells =
