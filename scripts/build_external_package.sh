@@ -14,6 +14,7 @@ repair modes:
 
 optional environment:
   NIX_MANYLINUX_BUILD_SETUP  shell file sourced inside the target shell before building
+  NIX_MANYLINUX_KEEP_WORKDIR keep the copied build tree and write OUT_DIR/workdir.env
 EOF
 }
 
@@ -81,7 +82,12 @@ nix develop "$REPO_ROOT#${TARGET_ATTR}" -c bash -lc '
   repair_mode="'"$REPAIR_MODE"'"
 
   workdir=$(mktemp -d)
-  trap "rm -rf \"$workdir\"" EXIT
+  if [ "${NIX_MANYLINUX_KEEP_WORKDIR:-0}" = "1" ]; then
+    printf "NIX_MANYLINUX_WORKDIR=%q\n" "$workdir" > "'"$OUT_DIR"'/workdir.env"
+    trap "echo kept workdir: \"$workdir\" >&2" EXIT
+  else
+    trap "rm -rf \"$workdir\"" EXIT
+  fi
 
   cp -a "'"$SOURCE_DIR"'" "$workdir/src"
   chmod -R u+w "$workdir/src"
