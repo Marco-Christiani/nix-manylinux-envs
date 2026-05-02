@@ -11,6 +11,9 @@ repair modes:
   none    build raw wheel and run auditwheel show only
   auto    repair wheel with auditwheel's default platform selection
   target  repair wheel with --plat set from the target shell policy
+
+optional environment:
+  NIX_MANYLINUX_BUILD_SETUP  shell file sourced inside the target shell before building
 EOF
 }
 
@@ -85,6 +88,10 @@ nix develop "$REPO_ROOT#${TARGET_ATTR}" -c bash -lc '
   cd "$workdir/src"
   rm -rf .venv build dist
   find . -maxdepth 3 -type d \( -name "*.egg-info" -o -name ".pytest_cache" -o -name ".mypy_cache" \) -prune -exec rm -rf {} +
+
+  if [ -n "${NIX_MANYLINUX_BUILD_SETUP:-}" ]; then
+    . "$NIX_MANYLINUX_BUILD_SETUP"
+  fi
 
   "$pybin" -m venv .venv
   .venv/bin/python -m pip install -U pip setuptools wheel '"$EXTRA_PIP_ARGS"' > "'"$OUT_DIR"'/pip.log" 2>&1
