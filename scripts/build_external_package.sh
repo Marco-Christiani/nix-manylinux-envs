@@ -62,6 +62,8 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd -- "$SCRIPT_DIR/.." && pwd)
 
 mkdir -p "$OUT_DIR"
+SOURCE_DIR=$(realpath "$SOURCE_DIR")
+OUT_DIR=$(realpath "$OUT_DIR")
 
 EXTRA_PIP_PACKAGES=("$@")
 if [ "${#EXTRA_PIP_PACKAGES[@]}" -eq 0 ]; then
