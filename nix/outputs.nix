@@ -21,9 +21,19 @@
   };
   buildEnvNames = builtins.attrNames buildEnvs;
   mkManylinuxWheel = import ./lib/mk-manylinux-wheel.nix;
-  mkManylinuxWheelSmoke = import ./mk-manylinux-wheel-smoke.nix {
-    inherit lib pkgs mkManylinuxWheel;
-    targetShell = buildEnvs.manylinux_2_28_candidate.shell;
+  mkManylinuxWheelSmokes = {
+    cp312 = import ./mk-manylinux-wheel-smoke.nix {
+      inherit lib pkgs mkManylinuxWheel;
+      targetShell = buildEnvs.manylinux_2_28_candidate.shell;
+      python = pkgs.python312;
+      suffix = "cp312";
+    };
+    cp313 = import ./mk-manylinux-wheel-smoke.nix {
+      inherit lib pkgs mkManylinuxWheel;
+      targetShell = buildEnvs.manylinux_2_28_candidate.shell;
+      python = pkgs.python313;
+      suffix = "cp313";
+    };
   };
 
   probeVariantDefs = {
@@ -375,7 +385,8 @@
       targets-json = showTargetsJson;
       policy-targets-json = showPolicyTargetsJson;
       conformance-summary-json = showConformanceJson;
-      mk-manylinux-wheel-smoke = mkManylinuxWheelSmoke;
+      mk-manylinux-wheel-smoke = mkManylinuxWheelSmokes.cp312;
+      mk-manylinux-wheel-smoke-cp313 = mkManylinuxWheelSmokes.cp313;
     }
     // lib.mapAttrs' (name: value: lib.nameValuePair "${name}-probe-suite-summary" value) candidateProbeSuiteSummaries
     // buildEnvPackages
@@ -386,7 +397,8 @@
     floorChecks
     // conformanceChecks
     // {
-      mk-manylinux-wheel-smoke = mkManylinuxWheelSmoke;
+      mk-manylinux-wheel-smoke = mkManylinuxWheelSmokes.cp312;
+      mk-manylinux-wheel-smoke-cp313 = mkManylinuxWheelSmokes.cp313;
     }
     // lib.mapAttrs' (name: value: lib.nameValuePair "${name}-probe-suite" value) candidateProbeSuiteSummaries;
 

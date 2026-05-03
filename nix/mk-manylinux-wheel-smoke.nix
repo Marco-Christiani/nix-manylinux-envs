@@ -3,6 +3,8 @@
   pkgs,
   targetShell,
   mkManylinuxWheel,
+  python ? pkgs.python312,
+  suffix ? "cp312",
 }: let
   src = pkgs.runCommand "mk-manylinux-wheel-smoke-src" {} ''
     mkdir -p "$out/src/smoke"
@@ -52,8 +54,8 @@
   '';
 in
   mkManylinuxWheel {
-    inherit lib pkgs src targetShell;
-    pname = "mk-manylinux-wheel-smoke";
+    inherit lib pkgs python src targetShell;
+    pname = "mk-manylinux-wheel-smoke-${suffix}";
     version = "0.1.0";
     meta.description = "Smoke test for the mkManylinuxWheel API";
   }
