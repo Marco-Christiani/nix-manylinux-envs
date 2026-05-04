@@ -6,6 +6,7 @@ wheel=""
 wheel_dir=""
 cache_volume=""
 gpu=0
+quiet=0
 deps=()
 import_code="import sys; print(sys.version)"
 
@@ -19,6 +20,8 @@ Options:
   --cache-volume NAME    Mount a Docker volume at /root/.cache/pip.
   --import-module NAME   Import a module after wheel installation.
   --import-code CODE     Run arbitrary Python code after wheel installation.
+  --quiet                Print only START/PASS lines unless verification fails.
+  --show-output          Disable --quiet if both flags are present.
   --help                 Show this help.
 USAGE
 }
@@ -43,6 +46,14 @@ while [ "$#" -gt 0 ]; do
       ;;
     --gpu)
       gpu=1
+      shift
+      ;;
+    --quiet)
+      quiet=1
+      shift
+      ;;
+    --show-output)
+      quiet=0
       shift
       ;;
     --cache-volume)
@@ -104,7 +115,7 @@ fi
 
 install_deps=()
 if [ "${#deps[@]}" -gt 0 ]; then
-  install_deps=(python -m pip install --root-user-action=ignore)
+  install_deps=(python -m pip install --root-user-action=ignore --disable-pip-version-check)
   if [ -n "$cache_volume" ]; then
     install_deps+=(--cache-dir /root/.cache/pip)
   else
@@ -113,7 +124,7 @@ if [ "${#deps[@]}" -gt 0 ]; then
   install_deps+=("${deps[@]}")
 fi
 
-install_wheel=(python -m pip install --root-user-action=ignore --no-deps)
+install_wheel=(python -m pip install --root-user-action=ignore --disable-pip-version-check --no-deps)
 if [ -n "$cache_volume" ]; then
   install_wheel+=(--cache-dir /root/.cache/pip)
 else
@@ -132,4 +143,23 @@ python - <<'PY'
 $import_code
 PY"
 
-exec docker run "${docker_args[@]}" "$python_image" sh -lc "$script"
+echo "START ${wheel_name} ${python_image}"
+start_time=$(date +%s)
+if [ "$quiet" = 1 ]; then
+  log_file="$(mktemp)"
+  if docker run "${docker_args[@]}" "$python_image" sh -lc "$script" >"$log_file" 2>&1; then
+    end_time=$(date +%s)
+    echo "PASS ${wheel_name} $((end_time - start_time))s"
+    rm -f "$log_file"
+  else
+    status=$?
+    echo "FAIL ${wheel_name}" >&2
+    cat "$log_file" >&2
+    rm -f "$log_file"
+    exit "$status"
+  fi
+else
+  docker run "${docker_args[@]}" "$python_image" sh -lc "$script"
+  end_time=$(date +%s)
+  echo "PASS ${wheel_name} $((end_time - start_time))s"
+fi
