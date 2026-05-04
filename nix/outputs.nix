@@ -320,6 +320,16 @@
       '';
     };
 
+  verifyWheelInContainer = pkgs.writeShellApplication {
+    name = "verify-wheel-in-container";
+    runtimeInputs = [
+      pkgs.coreutils
+      pkgs.docker-client
+      pkgs.findutils
+    ];
+    text = builtins.readFile ../scripts/verify_wheel_in_container.sh;
+  };
+
   mkShowApp = {
     name,
     path,
@@ -356,6 +366,11 @@
         name = "show-manylinux-conformance";
         path = showConformanceJson;
         description = "Print manylinux build environment conformance reports as JSON.";
+      };
+      verify-wheel-in-container = {
+        type = "app";
+        program = "${verifyWheelInContainer}/bin/verify-wheel-in-container";
+        meta.description = "Install and import-test a wheel in a Python Docker container.";
       };
     }
     // lib.mapAttrs'
@@ -414,6 +429,7 @@
       policy-targets-json = showPolicyTargetsJson;
       build-targets-json = showBuildTargetsJson;
       conformance-summary-json = showConformanceJson;
+      inherit verifyWheelInContainer;
       mk-manylinux-wheel-smoke = mkManylinuxWheelSmokes.cp312;
       mk-manylinux-wheel-smoke-cp313 = mkManylinuxWheelSmokes.cp313;
     }
