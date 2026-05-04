@@ -21,6 +21,8 @@
   };
   buildEnvNames = builtins.attrNames buildEnvs;
   mkManylinuxWheel = import ./lib/mk-manylinux-wheel.nix;
+  targetMatrixLib = import ./lib/target-matrix.nix {inherit lib;};
+  buildTargets = targetMatrixLib.mkBuildTargets buildEnvs;
   mkManylinuxWheelSmokes = {
     cp312 = import ./mk-manylinux-wheel-smoke.nix {
       inherit lib pkgs mkManylinuxWheel;
@@ -275,6 +277,10 @@
         > "$out"
     '';
 
+  showBuildTargetsJson = pkgs.writeText "manylinux-build-targets.json" (
+    builtins.toJSON (targetMatrixLib.toGithubActionsMatrix buildTargets)
+  );
+
   mkProbeSuiteSummary = {
     name,
     targetTag,
@@ -314,32 +320,54 @@
       '';
     };
 
+  mkShowApp = {
+    name,
+    path,
+    description,
+  }: {
+    type = "app";
+    program = "${mkCatApp name path}/bin/${name}";
+    meta.description = description;
+  };
+
   apps =
     {
-      default = {
-        type = "app";
-        program = "${mkCatApp "show-manylinux-policy-targets" showPolicyTargetsJson}/bin/show-manylinux-policy-targets";
+      default = mkShowApp {
+        name = "show-manylinux-policy-targets";
+        path = showPolicyTargetsJson;
+        description = "Print manylinux policy metadata as JSON.";
       };
-      show-targets = {
-        type = "app";
-        program = "${mkCatApp "show-manylinux-probe-targets" showTargetsJson}/bin/show-manylinux-probe-targets";
+      show-targets = mkShowApp {
+        name = "show-manylinux-probe-targets";
+        path = showTargetsJson;
+        description = "Print probe target metadata as JSON.";
       };
-      show-policy-targets = {
-        type = "app";
-        program = "${mkCatApp "show-manylinux-policy-targets" showPolicyTargetsJson}/bin/show-manylinux-policy-targets";
+      show-policy-targets = mkShowApp {
+        name = "show-manylinux-policy-targets";
+        path = showPolicyTargetsJson;
+        description = "Print manylinux policy metadata as JSON.";
       };
-      show-conformance = {
-        type = "app";
-        program = "${mkCatApp "show-manylinux-conformance" showConformanceJson}/bin/show-manylinux-conformance";
+      show-build-targets = mkShowApp {
+        name = "show-manylinux-build-targets";
+        path = showBuildTargetsJson;
+        description = "Print manylinux build target metadata as JSON.";
+      };
+      show-conformance = mkShowApp {
+        name = "show-manylinux-conformance";
+        path = showConformanceJson;
+        description = "Print manylinux build environment conformance reports as JSON.";
       };
     }
     // lib.mapAttrs'
     (
-      name: summary:
-        lib.nameValuePair "show-${builtins.replaceStrings ["_"] ["-"] name}-probe-suite" {
-          type = "app";
-          program = "${mkCatApp "show-${builtins.replaceStrings ["_"] ["-"] name}-probe-suite" summary}/bin/show-${builtins.replaceStrings ["_"] ["-"] name}-probe-suite";
-        }
+      name: summary: let
+        appName = "show-${builtins.replaceStrings ["_"] ["-"] name}-probe-suite";
+      in
+        lib.nameValuePair appName (mkShowApp {
+          name = appName;
+          path = summary;
+          description = "Print the ${name} probe suite summary as JSON.";
+        })
     )
     candidateProbeSuiteSummaries;
 
@@ -384,6 +412,7 @@
     {
       targets-json = showTargetsJson;
       policy-targets-json = showPolicyTargetsJson;
+      build-targets-json = showBuildTargetsJson;
       conformance-summary-json = showConformanceJson;
       mk-manylinux-wheel-smoke = mkManylinuxWheelSmokes.cp312;
       mk-manylinux-wheel-smoke-cp313 = mkManylinuxWheelSmokes.cp313;
@@ -416,6 +445,7 @@ in {
   inherit
     apps
     buildEnvs
+    buildTargets
     checks
     devShells
     packages

@@ -20,12 +20,36 @@
     nixpkgs-24_05.url = "github:NixOS/nixpkgs/nixos-24.05";
   };
 
-  outputs = inputs @ {flake-parts, ...}:
+  outputs = inputs @ {
+    flake-parts,
+    nixpkgs,
+    ...
+  }:
     flake-parts.lib.mkFlake {inherit inputs;} {
       systems = ["x86_64-linux"];
 
-      flake.lib = {
-        mkManylinuxWheel = import ./nix/lib/mk-manylinux-wheel.nix;
+      flake = let
+        system = "x86_64-linux";
+        pkgs = import nixpkgs {inherit system;};
+        outputs = pkgs.callPackage ./nix/outputs.nix {
+          inherit inputs system;
+        };
+      in {
+        lib = {
+          mkManylinuxWheel = import ./nix/lib/mk-manylinux-wheel.nix;
+          targetMatrix = import ./nix/lib/target-matrix.nix {inherit (nixpkgs) lib;};
+        };
+
+        legacyPackages.${system} = {
+          inherit
+            (outputs)
+            buildEnvs
+            buildTargets
+            policyTargets
+            probeSuites
+            targets
+            ;
+        };
       };
 
       perSystem = {
